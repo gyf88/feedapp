@@ -130,7 +130,7 @@ ViewModel 通过 LiveData 把“界面需要的数据状态”暴露给 Fragment
 
 ### 1. 项目模块划分（包结构）
 
-建议包结构如下（所有代码都放在 `com.example.feedapp` 下）：
+包结构如下（所有代码都放在 `com.example.feedapp` 下）：
 
 ```
 com.example.feedapp
