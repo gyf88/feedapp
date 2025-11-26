@@ -76,8 +76,6 @@
 - 模拟不同卡片样式、排版
 - 返回分页信息（hasMore / nextPage）
 
-和真实网络返回的形式完全一致，因此未来可以无缝替换成 Retrofit 接口。
-
 ### **4）FeedLocalDataSource（本地缓存）**
 
 把当前列表存到应用私有目录下的 `feed_cache.json`，在网络失败时备用。
