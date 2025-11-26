@@ -4,30 +4,127 @@
 
 **已经实现：**
 
-- 工程初始化（Java + AndroidX + ViewBinding）。
-- 主界面结构：
-    - `MainActivity` + `activity_main.xml`
-    - 使用 `CoordinatorLayout + FrameLayout + FloatingActionButton`。
-- 列表页面结构：
-    - `FeedFragment` + `fragment_feed.xml`
-    - 使用 `SwipeRefreshLayout + RecyclerView`。
-- 数据层：
-    - 统一的卡片数据模型 `FeedCard`，包含 cardType / layoutType 等字段。
-    - 分页结果模型 `FeedPageResult`。
-    - 模拟“服务端”数据源 `FeedRemoteDataSource`，支持分页、控制卡片类型和排版。
-    - 本地缓存数据源 `FeedLocalDataSource`，使用 JSON 文件 + Gson。
-    - 仓库层 `FeedRepository`，统一封装刷新、分页加载、多线程与缓存。
-- 业务逻辑层：
-    - `FeedViewModel`（AndroidViewModel）：使用 `LiveData` 暴露列表数据、刷新状态、加载更多状态和提示信息。
-- UI 列表层：
-    - `item_feed_text.xml`：卡片 UI 样式（文字卡片）。
-    - `FeedAdapter`：使用 ViewBinding 渲染列表项，支持**长按弹出删除对话框**（删除逻辑在 ViewModel+Repository 中完成）。
-- 整体行为：
-    - 打开 App 自动请求第一页数据并展示列表。
-    - 支持下拉刷新。
-    - 滑动到接近底部时自动加载更多分页数据。
-    - 长按任意卡片 → 弹出确认框 → 删除卡片并更新列表。
-    - 网络/请求失败时，尝试回退到本地缓存数据。
+### ✅ 当前整体行为（已完整跑通）
+
+现在应用已经具备一个信息流 App 的基本行为：
+
+1. **打开应用即自动加载第一页数据**
+2. **下拉即可刷新**
+3. **滑到接近底部会自动加载更多分页内容**
+4. **长按任意卡片会弹出对话框，确认后删除**
+5. **网络模拟失败时，会自动从本地缓存恢复数据**
+
+系统的“刷新 → 获取数据 → 更新 UI”的全链路已经打通，为后续加入多样式卡片、曝光监控、性能优化做好了基础。
+
+### ✅ 工程初始化
+
+项目使用 **Java + AndroidX** 开发，并启用了 **ViewBinding**，方便直接操作布局控件，减少 `findViewById` 的使用，提高代码可读性与安全性。
+
+### ✅ 主界面（MainActivity）
+
+主界面的布局由 `activity_main.xml` 定义，结构非常简单：
+
+- 外层使用 **CoordinatorLayout**（便于后续加入 AppBar、SnackBar 等效果）
+- 中间是一个 **FrameLayout 容器**，用于动态放置页面（FeedFragment）
+- 右下角放了一个 **FloatingActionButton**，预留给后续的“曝光调试工具”
+
+首次进入应用时，`MainActivity` 会把 **FeedFragment** 塞进这个容器中显示。
+
+### ✅ 列表页面（FeedFragment）
+
+列表页由 `fragment_feed.xml` 定义：
+
+- 上层使用 **SwipeRefreshLayout**，用来做下拉刷新动画
+- 里面是一个 **RecyclerView**，展示信息流卡片列表
+
+`FeedFragment` 负责管理：
+
+- 下拉刷新
+- 列表滚动检测（触底自动加载更多）
+- 长按删除卡片
+- 监听 ViewModel 的 LiveData，并更新界面
+
+### ✅ 数据层设计（模型 / 数据源 / 仓库）
+
+整个数据层被拆分成几部分，职责清晰：
+
+### **1）FeedCard（卡片数据模型）**
+
+定义“每一张卡片”长什么样，包括：
+
+- 文本内容（标题、副标题、正文）
+- 卡片类型（纯文字 / 图片 / 视频）
+- 展示方式（单列或双列）
+- 图片 URL、视频时长等字段
+
+后续扩展卡片样式非常方便。
+
+### **2）FeedPageResult（分页结果模型）**
+
+用于描述“拉取一页数据”的结果，包括：
+
+- 当前页的卡片列表
+- 是否还需要继续请求下一页
+- 下一页的页码
+
+它让分页逻辑变得统一又清晰。
+
+### **3）FeedRemoteDataSource（模拟服务端）**
+
+没有接真实后端，而是“模拟 API 接口”：
+
+- 每次根据页码生成固定数量的卡片
+- 模拟网络延迟
+- 模拟不同卡片样式、排版
+- 返回分页信息（hasMore / nextPage）
+
+和真实网络返回的形式完全一致，因此未来可以无缝替换成 Retrofit 接口。
+
+### **4）FeedLocalDataSource（本地缓存）**
+
+把当前列表存到应用私有目录下的 `feed_cache.json`，在网络失败时备用。
+
+- 使用 Gson 做 JSON 序列化
+- 使用普通文件读写即可，无需数据库
+
+### **5）FeedRepository（仓库层）**
+
+数据访问的“唯一入口”，负责：
+
+- 刷新第一页
+- 加载下一页
+- 删除卡片
+- 多线程处理数据获取
+- 出错时自动 fallback 到本地缓存
+
+UI 与 ViewModel 完全不用关心数据来自哪里，真正实现解耦。
+
+### ✅ 业务逻辑层：FeedViewModel
+
+ViewModel 通过 LiveData 把“界面需要的数据状态”暴露给 Fragment，包括：
+
+- 卡片列表（cardsLiveData）
+- 是否正在刷新（refreshingLiveData）
+- 是否正在加载更多（loadingMoreLiveData）
+- 提示信息（toastLiveData）
+
+并提供：
+
+- `refresh()`
+- `loadMore()`
+- `deleteCard()`
+
+这 3 大操作，统一转发给 Repository。
+
+### ✅ 列表 UI：FeedAdapter + item_feed_text.xml
+
+- `item_feed_text.xml` 是文字卡片展示模板（后续可扩展更多样式）
+- `FeedAdapter` 负责：
+    - 把 FeedCard 渲染成 UI
+    - 使用 ViewBinding
+    - 处理长按事件并回调给 Fragment
+
+所有卡片渲染都集中在这一层，便于后续扩展 ViewType。
 
 # 工程整体设计
 
@@ -46,8 +143,8 @@ com.example.feedapp
  ├─ ui
  │   ├─ main         // MainActivity，Tab/入口
  │   ├─ feed         // FeedFragment、Adapter、ViewHolder、ViewModel
- │   └─ debug        // 曝光调试页面（在 App 内直接查看埋点）
- └─ util             // 通用工具（JSON、线程、Toast 封装等）
+ │   └─ debug        // 曝光调试页面
+ └─ util             // 通用工具
 ```
 
 架构：**MVVM**
