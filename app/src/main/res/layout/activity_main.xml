@@ -6,20 +6,64 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- 以后用来放 Fragment 的容器 -->
+    <!-- 主内容区域：Fragment 容器 -->
     <FrameLayout
         android:id="@+id/container"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- 右下角的悬浮按钮，用来打开“曝光调试工具” -->
+    <!-- 曝光日志悬浮面板（默认隐藏） -->
+    <FrameLayout
+        android:id="@+id/exposureOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="260dp"
+        android:layout_gravity="bottom"
+        android:background="#CC000000"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:orientation="vertical"
+            android:padding="8dp"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <TextView
+                android:id="@+id/tvExposureTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="曝光测试日志（实时）"
+                android:textColor="@android:color/white"
+                android:textStyle="bold"
+                android:textSize="16sp" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvExposureLog"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:paddingTop="4dp" />
+
+            <TextView
+                android:id="@+id/tvExposureHint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="提示：再次点击右下角按钮可关闭此窗口"
+                android:textColor="@android:color/white"
+                android:textSize="12sp"
+                android:gravity="end" />
+        </LinearLayout>
+
+    </FrameLayout>
+
+    <!-- 右下角按钮：打开/关闭曝光日志面板 -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabDebugExposure"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="16dp"
         android:contentDescription="@string/app_name"
-        android:layout_gravity="bottom|end"
-        app:srcCompat="@android:drawable/ic_menu_info_details" />
+        app:srcCompat="@android:drawable/ic_menu_info_details"
+        app:layout_anchor="@id/container"
+        app:layout_anchorGravity="bottom|end" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
