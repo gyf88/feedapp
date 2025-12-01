@@ -107,7 +107,7 @@ com.example.feedapp
  │   └─ debug          // 日志列表适配器（LogAdapter）等调试相关 UI
  │
  └─ util               // 通用工具（如线程池封装、log 工具等，可按需扩展）
-
+```
 
 整体架构采用 **MVVM + Repository**：
 
