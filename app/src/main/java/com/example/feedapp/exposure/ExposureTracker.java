@@ -33,6 +33,7 @@ import java.util.Map;
  */
 public class ExposureTracker extends RecyclerView.OnScrollListener
         implements RecyclerView.OnChildAttachStateChangeListener {
+
     /** 被监听的 RecyclerView */
     private final RecyclerView recyclerView;
     /** 适配器，用来拿每个 position 对应的 FeedCard 数据（包括 id/title/type） */
@@ -50,6 +51,24 @@ public class ExposureTracker extends RecyclerView.OnScrollListener
      */
     private final Map<String, ExposureStage> stageMap = new HashMap<>();
 
+    /**
+     * 记录“某个 cardId 最近一次可见时的快照信息”：
+     * - title     ：最近一次看到它时的标题
+     * - cardType  ：最近一次看到它时的类型（TEXT / IMAGE / VIDEO）
+     * - position  ：最近一次看到它时在 Adapter 中的位置
+     *
+     * 用途：
+     * - 当卡片完全离开屏幕，需要发 EXIT 事件时，即使当前拿不到 View / position，
+     *   也可以用这里的快照生成一个完整的 ExposureEvent（不再是 UNKNOWN / 空 title）。
+     */
+    private final Map<String, LastVisibleInfo> lastInfoMap = new HashMap<>();
+
+    private static class LastVisibleInfo {
+        String title;
+        int cardType;
+        int lastPosition;
+    }
+
     public ExposureTracker(RecyclerView recyclerView, FeedAdapter adapter) {
         this.recyclerView = recyclerView;
         this.adapter = adapter;
@@ -58,6 +77,7 @@ public class ExposureTracker extends RecyclerView.OnScrollListener
         // 注册自己为 Child attach/detach 监听器（子 View 进入/离开屏幕时也会触发）
         this.recyclerView.addOnChildAttachStateChangeListener(this);
     }
+
     // -------------------- RecyclerView.OnScrollListener --------------------
     @Override
     public void onScrolled(RecyclerView rv, int dx, int dy) {
@@ -65,6 +85,7 @@ public class ExposureTracker extends RecyclerView.OnScrollListener
         // 每次滚动，都重新计算一遍当前所有可见子项的曝光情况
         dispatchExposure();
     }
+
     // -------------------- RecyclerView.OnChildAttachStateChangeListener --------------------
     @Override
     public void onChildViewAttachedToWindow(View view) {
@@ -102,7 +123,7 @@ public class ExposureTracker extends RecyclerView.OnScrollListener
         int childCount = recyclerView.getChildCount();
         long now = System.currentTimeMillis();
 
-        // 为了检测“从可见 -> 完全不可见”，先拷贝一份之前的 stageMap 快照
+        // 为了检测“从可见 -> 完全不可见”，先记录当前这一帧可见的 id -> ratio
         Map<String, Float> currentVisibleRatio = new HashMap<>();
 
         // ---------- 1. 遍历当前所有 child，计算可见比例并生成 ENTER/HALF/FULL ----------
@@ -131,6 +152,18 @@ public class ExposureTracker extends RecyclerView.OnScrollListener
             }
 
             currentVisibleRatio.put(id, ratio);
+
+            // ==== 新增：更新“最近一次可见快照” ====
+            LastVisibleInfo info = lastInfoMap.get(id);
+            if (info == null) {
+                info = new LastVisibleInfo();
+                lastInfoMap.put(id, info);
+            }
+            info.title = card.getTitle();
+            info.cardType = card.getCardType();
+            info.lastPosition = position;
+            // ====================================
+
             // 根据可见比例映射到我们的四个阶段之一
             ExposureStage newStage;
             if (ratio <= 0f) {
@@ -170,21 +203,39 @@ public class ExposureTracker extends RecyclerView.OnScrollListener
             String id = entry.getKey();
             if (!currentVisibleRatio.containsKey(id)) {
                 ExposureStage prev = entry.getValue();
-                // 如果之前是 ENTER/HALF/FULL，但现在已经不在 visibleIds 中，
+                // 如果之前是 ENTER/HALF/FULL，但现在已经不在 visibleRatio 中，
                 // 说明这条卡片已经彻底离开可见区域 -> 需要发 EXIT。
                 if (prev != ExposureStage.EXIT) {
                     stageMap.put(id, ExposureStage.EXIT);
+
+                    // ==== 新增：从快照中拿出它最后一次可见时的信息 ====
+                    LastVisibleInfo info = lastInfoMap.get(id);
+                    int exitPosition = -1;
+                    String exitTitle = null;
+                    int exitCardType = -1;
+                    if (info != null) {
+                        // 这里有两种策略：
+                        // 1）保留 -1 语义：表示“当前这帧已经不可见”，但使用 lastPosition 只是用于日志参考；
+                        // 2）直接用 lastPosition 作为 EXIT 的 position，表示“离开前在第几位”。
+                        //
+                        // 这里选择 2），方便你在日志中根据 position 快速定位卡片。
+                        exitPosition = info.lastPosition;
+                        exitTitle = info.title;
+                        exitCardType = info.cardType;
+                    }
+                    // ==========================================
+
                     ExposureEvent event = new ExposureEvent(
                             id,
-                            -1,     // 位置未知/不可见，用 -1 标记
+                            exitPosition,
                             ExposureStage.EXIT,
                             now,
-                            null,    // title 不知道就传 null
-                            -1       // cardType 不知道就传 -1
+                            exitTitle,
+                            exitCardType
                     );
                     ExposureLogger.log(event);
 
-                    // 位置 -1，表示完全看不到了，这里就不再做 Adapter 通知了
+                    // 位置已经不可见，不需要再通知 Adapter 做 UI 更新
                 }
             }
         }

@@ -16,6 +16,11 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import java.util.ArrayList;
 import java.util.List;
 
+import android.app.AlertDialog;
+import android.widget.Toast;
+
+import com.example.feedapp.data.remote.FeedRemoteDataSource;
+
 /**
  * MainActivity 是整个 App 的入口 Activity（单 Activity 架构的“壳子”）：
  *
@@ -87,6 +92,48 @@ public class MainActivity extends AppCompatActivity implements ExposureLogger.Li
         //    - 同时在打开时注册曝光监听器，关闭时取消监听。
         FloatingActionButton fab = findViewById(R.id.fabDebugExposure);
         fab.setOnClickListener(v -> toggleExposurePanel());
+
+        fab.setOnLongClickListener(v -> {
+            showNetworkDebugDialog();
+            return true;   // 消费长按事件
+        });
+    }
+    private void showNetworkDebugDialog() {
+        String[] items = {
+                "正常模式（不故意失败）",
+                "刷新必失败（page=0）",
+                "加载更多必失败（page>0）",
+                "随机失败（50% 概率）"
+        };
+
+        new AlertDialog.Builder(this)
+                .setTitle("网络错误调试模式")
+                .setItems(items, (dialog, which) -> {
+                    FeedRemoteDataSource.FailMode mode;
+                    String toastText;
+                    switch (which) {
+                        case 1:
+                            mode = FeedRemoteDataSource.FailMode.REFRESH_ALWAYS_FAIL;
+                            toastText = "已切到：刷新必失败";
+                            break;
+                        case 2:
+                            mode = FeedRemoteDataSource.FailMode.LOAD_MORE_ALWAYS_FAIL;
+                            toastText = "已切到：加载更多必失败";
+                            break;
+                        case 3:
+                            mode = FeedRemoteDataSource.FailMode.RANDOM_FAIL;
+                            toastText = "已切到：随机失败";
+                            break;
+                        case 0:
+                        default:
+                            mode = FeedRemoteDataSource.FailMode.NONE;
+                            toastText = "已切到：正常模式";
+                            break;
+                    }
+                    FeedRemoteDataSource.setFailMode(mode);
+                    Toast.makeText(this, toastText, Toast.LENGTH_SHORT).show();
+                })
+                .show();
     }
 
     // -------------------- 悬浮曝光面板的开关逻辑 --------------------

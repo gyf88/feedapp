@@ -66,6 +66,11 @@ public class FeedRemoteDataSource {
         // 方便你在加载更多 / 下拉刷新时看到 loading 状态。
         SystemClock.sleep(NETWORK_DELAY_MS);
 
+        // -------------------- 调试：根据 failMode 决定是否“故意失败” --------------------
+        if (shouldFail(page)) {
+            throw new RuntimeException("模拟网络异常，page=" + page);
+        }
+
         // -------------------- 2. 构造本页的卡片列表 --------------------
         List<FeedCard> list = new ArrayList<>();
         int start = page * pageSize;
@@ -123,5 +128,33 @@ public class FeedRemoteDataSource {
         result.setHasMore(true);        // 无限生成
         result.setNextPage(page + 1);
         return result;
+    }
+
+    // ======= 调试用的失败模式开关 =======
+    public enum FailMode {
+        NONE,               // 正常模式
+        REFRESH_ALWAYS_FAIL,// 只有刷新（page=0）会失败
+        LOAD_MORE_ALWAYS_FAIL, // 只有加载更多（page>0）会失败
+        RANDOM_FAIL         // 随机失败
+    }
+
+    private static FailMode failMode = FailMode.NONE;
+
+    public static void setFailMode(FailMode mode) {
+        failMode = mode;
+    }
+
+    private boolean shouldFail(int page) {
+        switch (failMode) {
+            case REFRESH_ALWAYS_FAIL:
+                return page == 0;
+            case LOAD_MORE_ALWAYS_FAIL:
+                return page > 0;
+            case RANDOM_FAIL:
+                return Math.random() < 0.5;  // 50% 概率失败
+            case NONE:
+            default:
+                return false;
+        }
     }
 }
